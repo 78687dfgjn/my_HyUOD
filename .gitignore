@@ -1,0 +1,9 @@
+.idea/
+__pycache__/
+*.pyc
+runs/
+train_runs/
+runs_screen/
+
+# Local workspace instructions can contain server credentials.
+AGENTS.md
