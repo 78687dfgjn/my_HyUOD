@@ -81,6 +81,9 @@ names:
 
 # Usage
 
+For the B (FreqFusion) and B+C (FreqFusion + SRConv) experiments, see
+[configuration and training instructions](docs/experiments_bc.md).
+
 ## 🚀 Training
 To train the model, run the following command using the provided configuration and your dataset yaml:
 ```Shell

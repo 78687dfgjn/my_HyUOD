@@ -52,6 +52,7 @@ __all__ = (
     "Attention",
     "PSA",
     "SCDown",
+    "SRConv",
     "TorchVision",
     "Input_agent",
     "t_head",
@@ -2250,3 +2251,36 @@ class C3k2_wcpm(nn.Module):
         y = [y[0], y[1]]
         y.extend(m(y[-1]) for m in self.m)
         return self.cv2(torch.cat(y, 1))
+
+
+class SRConv(nn.Module):
+    """Spatial residual convolution adapted from the official BSR5 backbone.
+
+    Source: H1kari06/Underwater-object-detection,
+    Spatial-Residual/BSR5-DETR/src/nn/backbone/bsr5.py.
+    Uses HyUOD's Conv/BatchNorm/activation implementation.
+    """
+
+    def __init__(self, c1, c2, k=3, s=1, e=0.5, split_rate=4, kk=5, act=True):
+        super().__init__()
+        c_ = int(e * c2)
+        if split_rate < 2 or c_ <= 0 or c_ % split_rate:
+            raise ValueError("SRConv hidden channels must be positive and divisible by split_rate >= 2")
+        if kk < 1 or kk % 2 == 0:
+            raise ValueError("SRConv pooling kernel must be a positive odd integer")
+        self.ch_mid = c_ // split_rate
+        self.cv1 = Conv(c1, c_, k, s, act=act)
+        self.cv2 = Conv(self.ch_mid * 2, self.ch_mid * 2, 3, 1, act=act)
+        self.cv3 = Conv(self.ch_mid, self.ch_mid, 3, 1, act=act)
+        self.cv4 = Conv(c_ + self.ch_mid, c2, 1, 1, act=act)
+        self.pool = nn.MaxPool2d(kk, 1, kk // 2)
+
+    def forward(self, x):
+        y = self.cv1(x)
+        y1 = self.cv2(y[:, : self.ch_mid * 2])
+        y2 = self.cv3(y1[:, : self.ch_mid])
+        return self.cv4(torch.cat((
+            self.pool(y2), y2,
+            y1[:, self.ch_mid : self.ch_mid * 2],
+            y[:, self.ch_mid * 2 :],
+        ), dim=1))

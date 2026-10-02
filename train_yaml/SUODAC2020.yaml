@@ -1,5 +1,5 @@
 # train_yaml/SUODAC2020.yaml
-path: /hy-tmp/underwater_yolo/datasets_yolo/S-UODAC2020/S-UODAC2020
+path: /hy-tmp/hyuod-bc/datasets/SUODAC2020
 train: images/train
 train_t: t/train
 train_a: a/train

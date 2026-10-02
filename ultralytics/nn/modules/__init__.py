@@ -57,6 +57,7 @@ from .block import (
     RepVGGDW,
     ResNetLayer,
     SCDown,
+    SRConv,
     TorchVision,
     Input_agent,
     t_head,
@@ -66,6 +67,7 @@ from .block import (
     frequent_block,
     C3k2_wcpm,
 )
+from .freqfusion import FreqFusion, FreqFusionConcat
 from .conv import (
     CBAM,
     ChannelAttention,
@@ -126,6 +128,7 @@ __all__ = (
     "C2f",
     "C3k2",
     "SCDown",
+    "SRConv",
     "C2fPSA",
     "C2PSA",
     "C2fAttn",
@@ -178,4 +181,6 @@ __all__ = (
     "First_Conv",
     "frequent_block",
     "C3k2_wcpm",
+    "FreqFusion",
+    "FreqFusionConcat",
 )

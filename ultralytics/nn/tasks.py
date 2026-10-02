@@ -59,6 +59,7 @@ from ultralytics.nn.modules import (
     ResNetLayer,
     RTDETRDecoder,
     SCDown,
+    SRConv,
     Segment,
     TorchVision,
     WorldDetect,
@@ -67,6 +68,7 @@ from ultralytics.nn.modules import (
     t_head,
     A_head,
     frequent_block,
+    FreqFusionConcat,
     First_Conv,
     t_block,
     A_block,
@@ -1137,6 +1139,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             RepC3,
             PSA,
             SCDown,
+            SRConv,
             C2fCIB,
             A2C2f,
             t_head,
@@ -1213,6 +1216,16 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             c2 = args[1] if args[3] else args[1] * 4
         elif m is torch.nn.BatchNorm2d:
             args = [ch[f]]
+        elif m is FreqFusionConcat:
+            if not isinstance(f, (list, tuple)) or len(f) != 2:
+                raise ValueError("FreqFusionConcat requires from=[HR, LR]")
+            if n != 1:
+                raise ValueError("FreqFusionConcat must have repeat count 1")
+            if len(args) > 1:
+                raise ValueError("FreqFusionConcat YAML accepts only compressed_channels")
+            hr_channels, lr_channels = ch[f[0]], ch[f[1]]
+            args = [hr_channels, lr_channels, *args]
+            c2 = hr_channels + lr_channels
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
         elif m in frozenset({Detect, WorldDetect, Segment, Pose, OBB, ImagePoolingAttn, v10Detect}):
