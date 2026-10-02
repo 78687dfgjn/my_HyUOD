@@ -1,0 +1,13 @@
+# train_yaml/URPC2020.yaml
+path: /hy-tmp/underwater_yolo/datasets_yolo/URPC2020
+train: images/train
+train_t: t/train
+train_a: a/train
+val: images/test
+nc: 5
+names:
+  0: holothurian
+  1: echinus
+  2: starfish
+  3: scallop
+  4: watchweeds
