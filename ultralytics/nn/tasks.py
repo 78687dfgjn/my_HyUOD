@@ -69,6 +69,7 @@ from ultralytics.nn.modules import (
     A_head,
     frequent_block,
     FreqFusionConcat,
+    PGAER,
     First_Conv,
     t_block,
     A_block,
@@ -430,7 +431,15 @@ class DetectionModel(BaseModel):
 
     def init_criterion(self):
         """Initialize the loss criterion for the DetectionModel."""
-        return E2EDetectLoss(self) if getattr(self, "end2end", False) else v8DetectionLoss(self)
+        if getattr(self, "end2end", False):
+            return E2EDetectLoss(self)
+        if not self.yaml.get("uasd_loss", False):
+            return v8DetectionLoss(self)
+        if "uasd_tau" not in self.yaml:
+            raise ValueError("uasd_loss=True requires uasd_tau in the model YAML.")
+        return v8DetectionLoss(self, use_uasd=True,
+                               uasd_delta=float(self.yaml.get("uasd_delta", 0.5)),
+                               uasd_tau=float(self.yaml["uasd_tau"]))
 
 
 class OBBModel(DetectionModel):
@@ -1226,6 +1235,16 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             hr_channels, lr_channels = ch[f[0]], ch[f[1]]
             args = [hr_channels, lr_channels, *args]
             c2 = hr_channels + lr_channels
+        elif m is PGAER:
+            if not isinstance(f, (list, tuple)) or len(f) != 3:
+                raise ValueError("PGAER requires from=[P2_detail, transmission_P3, B_P3]")
+            if n != 1:
+                raise ValueError("PGAER must have repeat count 1")
+            if len(args) > 1:
+                raise ValueError("PGAER YAML accepts only partial_ratio")
+            p2_channels, t_channels, p3_channels = (ch[x] for x in f)
+            args = [p2_channels, t_channels, p3_channels, *args]
+            c2 = p3_channels
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
         elif m in frozenset({Detect, WorldDetect, Segment, Pose, OBB, ImagePoolingAttn, v10Detect}):

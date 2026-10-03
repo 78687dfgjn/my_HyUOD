@@ -33,6 +33,8 @@ def main():
         workers=8,
         device=0,
         iou=0.4,
+        seed=0,
+        patience=0,
     )
 
 

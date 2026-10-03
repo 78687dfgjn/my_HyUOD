@@ -68,6 +68,7 @@ from .block import (
     C3k2_wcpm,
 )
 from .freqfusion import FreqFusion, FreqFusionConcat
+from .pgaer import PGAER
 from .conv import (
     CBAM,
     ChannelAttention,
@@ -183,4 +184,5 @@ __all__ = (
     "C3k2_wcpm",
     "FreqFusion",
     "FreqFusionConcat",
+    "PGAER",
 )

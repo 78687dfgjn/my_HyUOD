@@ -1,5 +1,7 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -83,18 +85,76 @@ class DFLoss(nn.Module):
         ).mean(-1, keepdim=True)
 
 
+def _normalized_target_area(target_bboxes, imgsz):
+    """Normalized matched GT area in pixel coordinates, with FP32 AMP-safe arithmetic."""
+    target_wh_px = (target_bboxes[..., 2:4].float()
+                    - target_bboxes[..., 0:2].float()).clamp_min(0.0)
+    return (target_wh_px.prod(-1) / (imgsz.float().prod() + 1e-9)).detach()
+
+
+def uasd_iou(box1, box2, target_area_norm, delta=0.5, tau=0.0025, eps=1e-7):
+    """Dataset-adaptive SD score for xyxy boxes; retain original CIoU at area >= tau.
+
+    Small-box arithmetic uses FP32. Area must be normalized in image-pixel
+    coordinates before converting matched boxes into feature-level units.
+    This experimental formulation follows the supplied UASD design.
+    """
+    if not math.isfinite(float(delta)) or not 0.0 < float(delta) <= 1.0:
+        raise ValueError("uasd_delta must be finite and in (0, 1].")
+    if not math.isfinite(float(tau)) or float(tau) <= 0.0:
+        raise ValueError("uasd_tau must be finite and > 0.")
+    if box1.shape != box2.shape or target_area_norm.shape != box1.shape[:-1] + (1,):
+        raise ValueError("UASD requires matching boxes and target_area_norm[..., 1].")
+
+    # Preserve this repository's exact CIoU path for non-small targets.
+    ciou = bbox_iou(box1, box2, xywh=False, CIoU=True, eps=eps)
+    area = target_area_norm.detach().to(device=ciou.device, dtype=torch.float32)
+    small = (area < float(tau)).squeeze(-1)
+    pred, target = box1[small].float(), box2[small].float()
+    small_ciou = bbox_iou(pred, target, xywh=False, CIoU=True, eps=eps)
+
+    p_x1, p_y1, p_x2, p_y2 = pred.chunk(4, -1)
+    t_x1, t_y1, t_x2, t_y2 = target.chunk(4, -1)
+    cw = p_x2.maximum(t_x2) - p_x1.minimum(t_x1)
+    ch = p_y2.maximum(t_y2) - p_y1.minimum(t_y1)
+    rho2 = ((t_x1 + t_x2 - p_x1 - p_x2).square()
+            + (t_y1 + t_y2 - p_y1 - p_y2).square()) / 4.0
+    location = rho2 / (cw.square() + ch.square() + eps)
+    strength = float(delta) * (1.0 - (area[small] / float(tau)).clamp(0.0, 1.0))
+    # Equivalent to the supplied SD formula with beta=delta*clamp(area/tau):
+    # score=(1-strength)*CIoU + strength - 2*strength*location.
+    score = ciou.float().clone()
+    score[small] = (1.0 - strength) * small_ciou + strength - 2.0 * strength * location
+    return score
+
+
 class BboxLoss(nn.Module):
     """Criterion class for computing training losses for bounding boxes."""
 
-    def __init__(self, reg_max=16):
+    def __init__(self, reg_max=16, use_uasd=False, uasd_delta=0.5, uasd_tau=0.0025):
         """Initialize the BboxLoss module with regularization maximum and DFL settings."""
         super().__init__()
         self.dfl_loss = DFLoss(reg_max) if reg_max > 1 else None
+        if not math.isfinite(float(uasd_delta)) or not 0.0 < float(uasd_delta) <= 1.0:
+            raise ValueError("uasd_delta must be finite and in (0, 1].")
+        if not math.isfinite(float(uasd_tau)) or float(uasd_tau) <= 0.0:
+            raise ValueError("uasd_tau must be finite and > 0.")
+        self.use_uasd = bool(use_uasd)
+        self.uasd_delta = float(uasd_delta)
+        self.uasd_tau = float(uasd_tau)
 
-    def forward(self, pred_dist, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask):
+    def forward(self, pred_dist, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask,
+                target_area_norm=None):
         """Compute IoU and DFL losses for bounding boxes."""
         weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
-        iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
+        if self.use_uasd:
+            if target_area_norm is None:
+                raise RuntimeError("UASD Loss requires target_area_norm.")
+            iou = uasd_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask],
+                           target_area_norm[fg_mask].unsqueeze(-1),
+                           delta=self.uasd_delta, tau=self.uasd_tau)
+        else:
+            iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
         loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
 
         # DFL loss
@@ -152,7 +212,7 @@ class KeypointLoss(nn.Module):
 class v8DetectionLoss:
     """Criterion class for computing training losses for YOLOv8 object detection."""
 
-    def __init__(self, model, tal_topk=10):  # model must be de-paralleled
+    def __init__(self, model, tal_topk=10, use_uasd=False, uasd_delta=0.5, uasd_tau=0.0025):
         """Initialize v8DetectionLoss with model parameters and task-aligned assignment settings."""
         device = next(model.parameters()).device  # get model device
         h = model.args  # hyperparameters
@@ -169,7 +229,8 @@ class v8DetectionLoss:
         self.use_dfl = m.reg_max > 1
 
         self.assigner = TaskAlignedAssigner(topk=tal_topk, num_classes=self.nc, alpha=0.5, beta=6.0)
-        self.bbox_loss = BboxLoss(m.reg_max).to(device)
+        self.bbox_loss = BboxLoss(m.reg_max, use_uasd=use_uasd,
+                                  uasd_delta=uasd_delta, uasd_tau=uasd_tau).to(device)
         self.proj = torch.arange(m.reg_max, dtype=torch.float, device=device)
 
     def preprocess(self, targets, batch_size, scale_tensor):
@@ -243,9 +304,14 @@ class v8DetectionLoss:
 
         # Bbox loss
         if fg_mask.sum():
+            target_area_norm = None
+            if self.bbox_loss.use_uasd:
+                # imgsz can be FP16 under AMP: multiply only after converting to FP32.
+                target_area_norm = _normalized_target_area(target_bboxes, imgsz)
             target_bboxes /= stride_tensor
             loss[0], loss[2] = self.bbox_loss(
-                pred_distri, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask
+                pred_distri, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask,
+                target_area_norm=target_area_norm,
             )
 
         loss[0] *= self.hyp.box  # box gain

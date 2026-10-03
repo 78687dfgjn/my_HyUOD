@@ -1,0 +1,63 @@
+{
+  "dataset": "S-UODAC2020",
+  "split": "train",
+  "area_definition": "normalized YOLO width * height, before augmentation",
+  "percentile_method": "numpy.percentile(method='linear')",
+  "numpy_version": "1.24.1",
+  "label_files": 4745,
+  "background_label_files": 76,
+  "gt_boxes": 35487,
+  "class_box_counts": {
+    "2": 4682,
+    "0": 19087,
+    "1": 5826,
+    "3": 5892
+  },
+  "label_manifest_sha256": "2179e1b088c18449e728cdc27e84792207d48a412e653278dcc52f2093c904ad",
+  "minimum_area": 2.1306825e-05,
+  "maximum_area": 0.26259943244999995,
+  "quantiles": {
+    "q05": {
+      "norm_area": 0.0013398437675000005,
+      "area_at_640": 548.8000071680002,
+      "equivalent_side_at_640": 23.42648089594338
+    },
+    "q10": {
+      "norm_area": 0.0018323864125000002,
+      "area_at_640": 750.5454745600001,
+      "equivalent_side_at_640": 27.39608502249911
+    },
+    "q20": {
+      "norm_area": 0.002732599125,
+      "area_at_640": 1119.2726016000001,
+      "equivalent_side_at_640": 33.45553170403962
+    },
+    "q25": {
+      "norm_area": 0.0031995739062500002,
+      "area_at_640": 1310.545472,
+      "equivalent_side_at_640": 36.2014567662684
+    },
+    "q30": {
+      "norm_area": 0.0036878550375,
+      "area_at_640": 1510.5454233599999,
+      "equivalent_side_at_640": 38.865735852547544
+    },
+    "q50": {
+      "norm_area": 0.0062402348250000005,
+      "area_at_640": 2556.0001843200002,
+      "equivalent_side_at_640": 50.55690046195475
+    },
+    "q75": {
+      "norm_area": 0.012165305625000001,
+      "area_at_640": 4982.909184,
+      "equivalent_side_at_640": 70.58972435135301
+    },
+    "q90": {
+      "norm_area": 0.021370739127500007,
+      "area_at_640": 8753.454746624004,
+      "equivalent_side_at_640": 93.55989924440921
+    }
+  },
+  "selected_percentile": 25,
+  "selected_tau": 0.0031995739062500002
+}

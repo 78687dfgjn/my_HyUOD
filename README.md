@@ -84,6 +84,9 @@ names:
 For the B (FreqFusion) and B+C (FreqFusion + SRConv) experiments, see
 [configuration and training instructions](docs/experiments_bc.md).
 
+For B+D (PGAER) and B+D+E (UASD localization loss), see
+[configuration, scale statistics and training instructions](docs/experiments_bde.md).
+
 ## 🚀 Training
 To train the model, run the following command using the provided configuration and your dataset yaml:
 ```Shell
