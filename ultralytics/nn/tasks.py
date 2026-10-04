@@ -70,6 +70,7 @@ from ultralytics.nn.modules import (
     frequent_block,
     FreqFusionConcat,
     PGAER,
+    TGER,
     First_Conv,
     t_block,
     A_block,
@@ -1244,6 +1245,16 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 raise ValueError("PGAER YAML accepts only partial_ratio")
             p2_channels, t_channels, p3_channels = (ch[x] for x in f)
             args = [p2_channels, t_channels, p3_channels, *args]
+            c2 = p3_channels
+        elif m is TGER:
+            if not isinstance(f, (list, tuple)) or len(f) != 2:
+                raise ValueError("TGER requires from=[transmission_P3, B_P3]")
+            if n != 1:
+                raise ValueError("TGER must have repeat count 1")
+            if len(args) > 1:
+                raise ValueError("TGER YAML accepts only partial_ratio")
+            t_channels, p3_channels = (ch[x] for x in f)
+            args = [t_channels, p3_channels, *args]
             c2 = p3_channels
         elif m is Concat:
             c2 = sum(ch[x] for x in f)

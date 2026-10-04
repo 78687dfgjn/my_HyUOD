@@ -69,6 +69,7 @@ from .block import (
 )
 from .freqfusion import FreqFusion, FreqFusionConcat
 from .pgaer import PGAER
+from .tger import TGER
 from .conv import (
     CBAM,
     ChannelAttention,
@@ -185,4 +186,5 @@ __all__ = (
     "FreqFusion",
     "FreqFusionConcat",
     "PGAER",
+    "TGER",
 )
